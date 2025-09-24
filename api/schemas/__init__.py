@@ -1,7 +1,7 @@
 # === api/schemas/__init__.py ===
-from .user_schemas import UserCreate, UserResponse
-from .project_schemas import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectWithStats
-from .issue_schemas import IssueCreate, IssueUpdate, IssueResponse
+from .user_schema import UserCreate, UserResponse
+from .project_schema import ProjectCreate, ProjectUpdate, ProjectResponse, ProjectWithStats
+from .issue_schema import IssueCreate, IssueUpdate, IssueResponse
 
 __all__ = [
     "UserCreate", "UserResponse",

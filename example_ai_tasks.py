@@ -1,11 +1,8 @@
-# === example_ai_tasks.py ===
 """
 Example AI training tasks for the GitLab MCP Simulator.
 These demonstrate the types of project management scenarios AI models can practice.
 """
-
 import requests
-import json
 from typing import List, Dict
 
 BASE_URL = "http://localhost:8000/api/v1"
@@ -17,40 +14,38 @@ class GitLabAITasks:
         """Task: Auto-assign labels and assignees to new issues"""
         print("🎯 AI Task 1: Issue Triage")
         
-        # Get all unassigned issues
-        response = requests.get(f"{BASE_URL}/issues?assignee_id=null")
+        # Get all issues and filter for unassigned
+        response = requests.get(f"{BASE_URL}/issues")
         issues = response.json()
+        unassigned_issues = [issue for issue in issues if issue.get('assignee_id') is None]
         
-        print(f"Found {len(issues)} unassigned issues to triage")
+        print(f"Found {len(unassigned_issues)} unassigned issues to triage")
+        
+        # Defensive: ensure issues is a list
+        if not isinstance(unassigned_issues, list):
+            print("❌ Unexpected response from /issues endpoint:", unassigned_issues)
+            return
         
         # Get available users
         users_response = requests.get(f"{BASE_URL}/users")
         users = users_response.json()
         
-        for issue in issues[:3]:  # Process first 3 issues
+        for issue in unassigned_issues[:3]:  # Process first 3 issues
             print(f"\nTriaging issue #{issue['id']}: {issue['title']}")
-            
-            # AI would analyze title/description and decide:
             suggested_labels = self._suggest_labels(issue['title'], issue['description'])
             suggested_assignee = self._suggest_assignee(issue, users)
-            
-            # Update the issue
+            print(f"Suggested labels: {suggested_labels}")
+            print(f"Suggested assignee: {suggested_assignee}")
+            # Simulate updating the issue
             update_data = {
                 "labels": suggested_labels,
                 "assignee_id": suggested_assignee
             }
-            
-            update_response = requests.patch(
-                f"{BASE_URL}/issues/{issue['id']}", 
-                json=update_data
-            )
-            
-            if update_response.status_code == 200:
-                assignee_name = next((u['name'] for u in users if u['id'] == suggested_assignee), "None")
-                print(f"  ✅ Labels: {suggested_labels}")
-                print(f"  ✅ Assigned to: {assignee_name}")
+            patch_resp = requests.patch(f"{BASE_URL}/issues/{issue['id']}", json=update_data)
+            if patch_resp.status_code == 200:
+                print("✅ Issue updated!")
             else:
-                print(f"  ❌ Failed to update issue")
+                print("❌ Failed to update issue:", patch_resp.text)
     
     def task_2_workload_balancing(self):
         """Task: Balance workload across team members"""
@@ -72,23 +67,16 @@ class GitLabAITasks:
         
         # Demonstrate bulk reassignment (AI would choose optimal transfers)
         if overloaded and underloaded:
-            from_user = overloaded[0]
-            to_user = underloaded[0]
-            
-            print(f"\nReassigning issues from {from_user['name']} to {to_user['name']}")
-            
-            # This would be the AI's decision-making process
-            response = requests.post(
+            from_user_id = overloaded[0]['id']
+            to_user_id = underloaded[0]['id']
+            print(f"Reassigning issues from {overloaded[0]['name']} to {underloaded[0]['name']}")
+            reassign_resp = requests.post(
                 f"{BASE_URL}/admin/bulk-reassign",
-                params={
-                    "from_user_id": from_user['username'].split('_')[0],  # Simplified lookup
-                    "to_user_id": to_user['username'].split('_')[0]
-                }
+                params={"from_user_id": from_user_id, "to_user_id": to_user_id, "limit": 2}
             )
-            
-            if response.status_code == 200:
-                result = response.json()
-                print(f"  ✅ {result['message']}")
+            print("Bulk reassignment result:", reassign_resp.json())
+        else:
+            print("No suitable users for reassignment demo.")
     
     def task_3_project_health_report(self):
         """Task: Generate project health insights"""
@@ -103,21 +91,11 @@ class GitLabAITasks:
         
         for project in projects:
             health_score = self._calculate_health_score(project)
-            status = "🟢 Healthy" if health_score > 70 else "🟡 At Risk" if health_score > 40 else "🔴 Critical"
-            
-            print(f"\n{project['name']}: {status} ({health_score}%)")
-            print(f"  Total Issues: {project['issues_count']}")
-            print(f"  Open Issues: {project['open_issues_count']}")
-            
-            if project['open_issues_count'] > 5:
-                print(f"  ⚠️  High number of open issues")
-            
-            # AI would provide recommendations
             recommendations = self._generate_recommendations(project)
-            if recommendations:
-                print(f"  💡 Recommendations:")
-                for rec in recommendations:
-                    print(f"     • {rec}")
+            print(f"Project: {project['name']}")
+            print(f"  Health Score: {health_score}/100")
+            print(f"  Recommendations: {', '.join(recommendations)}")
+            print("-" * 40)
     
     def _suggest_labels(self, title: str, description: str) -> List[str]:
         """Simulate AI label suggestion"""
@@ -127,51 +105,43 @@ class GitLabAITasks:
         if any(word in content for word in ["bug", "error", "crash", "broken"]):
             labels.append("bug")
         if any(word in content for word in ["feature", "add", "new", "implement"]):
-            labels.append("enhancement")
+            labels.append("feature")
         if any(word in content for word in ["urgent", "critical", "asap"]):
             labels.append("urgent")
         if any(word in content for word in ["mobile", "android", "ios"]):
             labels.append("mobile")
         if any(word in content for word in ["ui", "interface", "design"]):
-            labels.append("frontend")
+            labels.append("ui")
         
         return labels if labels else ["general"]
     
     def _suggest_assignee(self, issue: Dict, users: List[Dict]) -> int:
         """Simulate AI assignee suggestion"""
-        # Simple logic: assign to user with least work
-        # Real AI would consider skills, availability, etc.
-        return users[0]['id'] if users else None
+        # Assign to first available user for demo
+        if users:
+            return users[0]['id']
+        return None
     
     def _calculate_health_score(self, project: Dict) -> int:
-        """Calculate project health score (0-100)"""
-        total_issues = project['issues_count']
-        open_issues = project['open_issues_count']
-        
+        """Simulate project health scoring"""
+        total_issues = project.get('total_issues', 0)
+        open_issues = project.get('open_issues', 0)
         if total_issues == 0:
             return 100
-        
-        # Simple scoring: fewer open issues = healthier
-        completion_rate = ((total_issues - open_issues) / total_issues) * 100
-        
-        # Penalize projects with too many total issues
-        if total_issues > 10:
-            completion_rate *= 0.8
-        
-        return int(completion_rate)
+        closed = total_issues - open_issues
+        score = int((closed / total_issues) * 100)
+        return score
     
     def _generate_recommendations(self, project: Dict) -> List[str]:
-        """Generate AI recommendations"""
-        recommendations = []
-        
-        if project['open_issues_count'] > 5:
-            recommendations.append("Consider closing stale issues")
-            recommendations.append("Review workload distribution")
-        
-        if project['issues_count'] == 0:
-            recommendations.append("Add initial project tasks")
-        
-        return recommendations
+        """Simulate AI recommendations for project health"""
+        recs = []
+        if project.get('open_issues', 0) > 5:
+            recs.append("Reduce open issues")
+        if project.get('total_issues', 0) == 0:
+            recs.append("Add more issues to start work")
+        if not recs:
+            recs.append("Project is healthy")
+        return recs
 
 def run_ai_training_demo():
     """Run a demo of AI training tasks"""
@@ -183,12 +153,8 @@ def run_ai_training_demo():
     try:
         tasks = GitLabAITasks()
         tasks.task_1_triage_new_issues()
-        tasks.task_2_workload_balancing() 
+        tasks.task_2_workload_balancing()
         tasks.task_3_project_health_report()
-        
-        print("\n🎉 AI Training Demo Completed!")
-        print("💡 These tasks help AI models learn real project management skills")
-        
     except requests.exceptions.ConnectionError:
         print("❌ Could not connect to the API server.")
         print("💡 Make sure the server is running: python main.py")
